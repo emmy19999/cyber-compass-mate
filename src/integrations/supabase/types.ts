@@ -14,7 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assistant_chats: {
+        Row: {
+          created_at: string
+          id: string
+          question: string
+          response: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          question: string
+          response: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          question?: string
+          response?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          target: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          target?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          target?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      scans: {
+        Row: {
+          created_at: string
+          full_report: string
+          id: string
+          risk_score: number | null
+          severity_summary: string | null
+          target: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_report: string
+          id?: string
+          risk_score?: number | null
+          severity_summary?: string | null
+          target: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_report?: string
+          id?: string
+          risk_score?: number | null
+          severity_summary?: string | null
+          target?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
