@@ -2,10 +2,18 @@ import { useState } from "react";
 import { Shield, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface ScannerInputProps {
   onScan: (target: string) => void;
   isScanning: boolean;
+}
+
+const DOMAIN_REGEX = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/;
+const IP_REGEX = /^(25[0-5]|2[0-4]\d|1\d\d|\d\d|\d)(\.(25[0-5]|2[0-4]\d|1\d\d|\d\d|\d)){3}$/;
+
+function isValidTarget(input: string): boolean {
+  return DOMAIN_REGEX.test(input) || IP_REGEX.test(input);
 }
 
 export function ScannerInput({ onScan, isScanning }: ScannerInputProps) {
@@ -13,12 +21,17 @@ export function ScannerInput({ onScan, isScanning }: ScannerInputProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (target.trim() && !isScanning) {
-      onScan(target.trim());
+    const trimmed = target.trim();
+    if (!trimmed || isScanning) return;
+    if (!isValidTarget(trimmed)) {
+      toast.error("Please enter a valid IP address or domain name");
+      return;
     }
+    onScan(trimmed);
   };
 
-  const isValid = target.trim().length > 0;
+  const trimmed = target.trim();
+  const isValid = trimmed.length > 0 && isValidTarget(trimmed);
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto">
@@ -36,6 +49,7 @@ export function ScannerInput({ onScan, isScanning }: ScannerInputProps) {
               placeholder="Enter IP address or domain (e.g., 192.168.1.1 or example.com)"
               className="flex-1 border-0 bg-transparent font-mono text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={isScanning}
+              maxLength={255}
             />
             <Button
               type="submit"
@@ -64,8 +78,8 @@ export function ScannerInput({ onScan, isScanning }: ScannerInputProps) {
         )}
       </div>
       
-      <p className="text-center text-muted-foreground text-sm mt-4 font-mono">
-        Powered by AI security analysis
+      <p className="text-center text-muted-foreground text-xs mt-4 font-mono opacity-70">
+        ⚠️ Only scan systems you own or have permission to test
       </p>
     </form>
   );

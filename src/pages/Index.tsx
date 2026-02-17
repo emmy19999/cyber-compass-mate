@@ -36,8 +36,8 @@ const Index = () => {
             </div>
             
             <h1 className="text-4xl lg:text-6xl font-bold mb-4">
-              <span className="text-gradient-cyber">SecureScan</span>
-              <span className="text-foreground"> AI</span>
+              <span className="text-gradient-cyber">emmy-scan-ai</span>
+              <span className="text-foreground"> 🛰️</span>
             </h1>
             
             <p className="text-lg lg:text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -101,7 +101,10 @@ const Index = () => {
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center">
           <p className="text-muted-foreground text-sm font-mono">
-            SecureScan AI • Educational security analysis tool
+            emmy-scan-ai 🛰️ • Educational security analysis tool
+          </p>
+          <p className="text-muted-foreground text-xs font-mono mt-2 opacity-70">
+            created by emmy-brain-codes 🛰️
           </p>
         </div>
       </footer>
