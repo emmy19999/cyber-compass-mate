@@ -2,3 +2,6 @@ project_id = "ebwzwhyocnlpmucasnmb"
 
 [functions.analyze-security]
 verify_jwt = false
+
+[functions.cyber-assistant]
+verify_jwt = false

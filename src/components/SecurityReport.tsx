@@ -1,6 +1,9 @@
-import { Shield, AlertTriangle, CheckCircle, Info, ExternalLink, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { Shield, Copy, Check, Download } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { RiskGauge } from "@/components/RiskGauge";
+import { ExportButtons } from "@/components/ExportButtons";
+import ReactMarkdown from "react-markdown";
 
 interface SecurityReportProps {
   target: string;
@@ -8,8 +11,26 @@ interface SecurityReportProps {
   isStreaming: boolean;
 }
 
+function extractRiskScore(text: string): number | null {
+  const match = text.match(/\*\*Risk Score:\s*(\d+)\s*\/\s*100\*\*/i) 
+    || text.match(/Risk Score:\s*(\d+)\s*\/\s*100/i)
+    || text.match(/(\d+)\s*\/\s*100/);
+  if (match) {
+    const score = parseInt(match[1]);
+    if (score >= 0 && score <= 100) return score;
+  }
+  return null;
+}
+
+function extractCompromiseLikelihood(text: string): string | null {
+  const match = text.match(/Compromise Likelihood:\s*\*?\*?([^*\n]+)/i);
+  return match ? match[1].trim() : null;
+}
+
 export function SecurityReport({ target, content, isStreaming }: SecurityReportProps) {
   const [copied, setCopied] = useState(false);
+  const riskScore = useMemo(() => extractRiskScore(content), [content]);
+  const likelihood = useMemo(() => extractCompromiseLikelihood(content), [content]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -17,164 +38,12 @@ export function SecurityReport({ target, content, isStreaming }: SecurityReportP
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Parse markdown to basic HTML-like rendering
-  const renderContent = (text: string) => {
-    const lines = text.split("\n");
-    const elements: React.ReactNode[] = [];
-    let inCodeBlock = false;
-    let codeContent = "";
-    let codeLanguage = "";
-
-    lines.forEach((line, index) => {
-      // Code blocks
-      if (line.startsWith("```")) {
-        if (!inCodeBlock) {
-          inCodeBlock = true;
-          codeLanguage = line.slice(3);
-          codeContent = "";
-        } else {
-          elements.push(
-            <pre
-              key={`code-${index}`}
-              className="bg-secondary/50 border border-border rounded-lg p-4 overflow-x-auto font-mono text-sm my-4"
-            >
-              <code>{codeContent}</code>
-            </pre>
-          );
-          inCodeBlock = false;
-        }
-        return;
-      }
-
-      if (inCodeBlock) {
-        codeContent += (codeContent ? "\n" : "") + line;
-        return;
-      }
-
-      // Headers
-      if (line.startsWith("### ")) {
-        elements.push(
-          <h3 key={index} className="text-lg font-semibold text-foreground mt-6 mb-3 flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" />
-            {line.slice(4)}
-          </h3>
-        );
-        return;
-      }
-      if (line.startsWith("## ")) {
-        elements.push(
-          <h2 key={index} className="text-xl font-bold text-foreground mt-8 mb-4 flex items-center gap-2 border-b border-border pb-2">
-            <Shield className="w-6 h-6 text-primary" />
-            {line.slice(3)}
-          </h2>
-        );
-        return;
-      }
-      if (line.startsWith("# ")) {
-        elements.push(
-          <h1 key={index} className="text-2xl font-bold text-gradient-cyber mt-6 mb-4">
-            {line.slice(2)}
-          </h1>
-        );
-        return;
-      }
-
-      // Bullet points with severity detection
-      if (line.startsWith("- ") || line.startsWith("* ")) {
-        const bulletContent = line.slice(2);
-        let severityClass = "";
-        let icon = <CheckCircle className="w-4 h-4 text-success shrink-0 mt-0.5" />;
-
-        if (bulletContent.toLowerCase().includes("critical")) {
-          severityClass = "severity-critical";
-          icon = <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />;
-        } else if (bulletContent.toLowerCase().includes("high")) {
-          severityClass = "severity-high";
-          icon = <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />;
-        } else if (bulletContent.toLowerCase().includes("medium")) {
-          severityClass = "severity-medium";
-          icon = <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />;
-        } else if (bulletContent.toLowerCase().includes("low") || bulletContent.toLowerCase().includes("info")) {
-          severityClass = "severity-low";
-          icon = <Info className="w-4 h-4 text-success shrink-0 mt-0.5" />;
-        }
-
-        elements.push(
-          <div key={index} className="flex items-start gap-2 my-2 pl-2">
-            {icon}
-            <span className={severityClass}>{renderInlineStyles(bulletContent)}</span>
-          </div>
-        );
-        return;
-      }
-
-      // Numbered lists
-      if (/^\d+\.\s/.test(line)) {
-        const numberMatch = line.match(/^(\d+)\.\s(.*)$/);
-        if (numberMatch) {
-          elements.push(
-            <div key={index} className="flex items-start gap-3 my-2 pl-2">
-              <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-sm font-mono flex items-center justify-center shrink-0">
-                {numberMatch[1]}
-              </span>
-              <span>{renderInlineStyles(numberMatch[2])}</span>
-            </div>
-          );
-        }
-        return;
-      }
-
-      // Links
-      if (line.includes("http")) {
-        const urlMatch = line.match(/(https?:\/\/[^\s]+)/);
-        if (urlMatch) {
-          elements.push(
-            <a
-              key={index}
-              href={urlMatch[1]}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-primary hover:underline my-2 font-mono text-sm"
-            >
-              <ExternalLink className="w-4 h-4" />
-              {urlMatch[1]}
-            </a>
-          );
-          return;
-        }
-      }
-
-      // Regular paragraphs
-      if (line.trim()) {
-        elements.push(
-          <p key={index} className="text-foreground/90 my-2 leading-relaxed">
-            {renderInlineStyles(line)}
-          </p>
-        );
-      } else {
-        elements.push(<div key={index} className="h-2" />);
-      }
-    });
-
-    return elements;
-  };
-
-  const renderInlineStyles = (text: string) => {
-    // Bold
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
-    // Inline code
-    text = text.replace(/`([^`]+)`/g, '<code class="bg-secondary/50 px-1.5 py-0.5 rounded text-primary font-mono text-sm">$1</code>');
-    // Italic
-    text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-    return <span dangerouslySetInnerHTML={{ __html: text }} />;
-  };
-
   return (
-    <div className="cyber-card p-6 mt-8">
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+    <div className="cyber-card p-6 mt-8" style={{ backdropFilter: "blur(12px)", background: "hsl(var(--card) / 0.85)" }}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 pb-4 border-b border-border gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center cyber-glow">
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -182,29 +51,42 @@ export function SecurityReport({ target, content, isStreaming }: SecurityReportP
             <p className="text-sm font-mono text-muted-foreground">{target}</p>
           </div>
         </div>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleCopy}
-          className="border-border hover:bg-secondary"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 mr-2 text-success" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy
-            </>
-          )}
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <ExportButtons target={target} content={content} />
+          <Button variant="outline" size="sm" onClick={handleCopy} className="border-border hover:bg-secondary text-xs">
+            {copied ? <><Check className="w-3.5 h-3.5 mr-1.5 text-success" /> Copied</> : <><Copy className="w-3.5 h-3.5 mr-1.5" /> Copy</>}
+          </Button>
+        </div>
       </div>
 
-      <div className="prose prose-invert max-w-none">
-        {renderContent(content)}
+      {/* Risk Score Panel */}
+      {riskScore !== null && (
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6 p-4 rounded-lg border border-border bg-secondary/30">
+          <RiskGauge score={riskScore} />
+          {likelihood && (
+            <div className="text-center sm:text-left">
+              <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Compromise Likelihood</p>
+              <p className="text-lg font-semibold text-foreground">{likelihood}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="prose prose-invert prose-sm max-w-none
+        [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-gradient-cyber [&_h1]:mt-6 [&_h1]:mb-4
+        [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-foreground [&_h2]:mt-8 [&_h2]:mb-4 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-2
+        [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_h3]:mt-6 [&_h3]:mb-3
+        [&_code]:bg-secondary/50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-primary [&_code]:font-mono [&_code]:text-sm
+        [&_pre]:bg-secondary/50 [&_pre]:border [&_pre]:border-border [&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_pre]:font-mono [&_pre]:text-sm
+        [&_pre_code]:bg-transparent [&_pre_code]:p-0
+        [&_a]:text-primary [&_a]:hover:underline
+        [&_strong]:text-foreground
+        [&_li]:text-foreground/90
+        [&_p]:text-foreground/90 [&_p]:leading-relaxed
+      ">
+        <ReactMarkdown>{content}</ReactMarkdown>
         {isStreaming && (
           <span className="inline-block w-2 h-5 bg-primary animate-pulse ml-1" />
         )}
