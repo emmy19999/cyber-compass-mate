@@ -4,7 +4,16 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const DOMAIN_REGEX = /^(?!:\/\/)([a-zA-Z0-9-_]+\.)+[a-zA-Z]{2,}$/;
+const IP_REGEX = /^(25[0-5]|2[0-4]\d|1\d\d|\d\d|\d)(\.(25[0-5]|2[0-4]\d|1\d\d|\d\d|\d)){3}$/;
+
+function validateTarget(target: string): boolean {
+  if (!target || target.length > 255) return false;
+  return IP_REGEX.test(target) || DOMAIN_REGEX.test(target);
+}
 
 const SYSTEM_PROMPT = `You are an expert cybersecurity analyst AI assistant. Your role is to analyze IP addresses and domains for potential security vulnerabilities and provide detailed, actionable recommendations.
 
@@ -44,12 +53,20 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { target } = await req.json();
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
-    if (!target) {
+  try {
+    const body = await req.json();
+    const target = body?.target?.trim();
+
+    if (!validateTarget(target)) {
       return new Response(
-        JSON.stringify({ error: "Target IP or domain is required" }),
+        JSON.stringify({ error: "Invalid IP address or domain format" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,6 +78,9 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     const userMessage = `Analyze the following target for security vulnerabilities: ${target}
 
@@ -76,6 +96,7 @@ Structure your response clearly with markdown headers and formatting.`;
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${LOVABLE_API_KEY}`,
           "Content-Type": "application/json",
@@ -91,37 +112,26 @@ Structure your response clearly with markdown headers and formatting.`;
       }
     );
 
+    clearTimeout(timeout);
+
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({
-            error: "Rate limit exceeded. Please try again in a moment.",
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({
-            error: "Service temporarily unavailable. Please try again later.",
-          }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       return new Response(
         JSON.stringify({ error: "Failed to analyze target" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -131,13 +141,8 @@ Structure your response clearly with markdown headers and formatting.`;
   } catch (error) {
     console.error("Security analysis error:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Internal error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
